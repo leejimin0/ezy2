@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>경동대학교 인물지도 | KDU People Atlas</title>
+
+  <!-- Fonts -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Pretendard', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
+            display: ['Plus Jakarta Sans', 'Pretendard', 'sans-serif'],
+          },
+          colors: {
+            kdu: {
+              navy: '#1E3A8A',
+              indigo: '#4F46E5',
+              sky: '#0EA5E9',
+              slate: '#0F172A',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- MapLibre GL JS (Open Source, No API Key Required) -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+  <!-- Chart.js & Lucide Icons -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.453.0/dist/umd/lucide.min.js"></script>
+
+  <style>
+    body {
+      background-color: #F8FAFC;
+      color: #0F172A;
+      font-feature-settings: "tnum" on, "lnum" on;
+    }
+    .glass-header {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    .bento-card {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03), 0 8px 24px -12px rgba(15, 23, 42, 0.06);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .bento-card-hover:hover {
+      transform: translateY(-2px);
+      border-color: #CBD5E1;
+      box-shadow: 0 12px 28px -12px rgba(30, 58, 138, 0.14);
+    }
+    #map {
+      height: 520px;
+      width: 100%;
+      border-radius: 1rem;
+      overflow: hidden;
+      border: 1px solid #E2E8F0;
+    }
+    .maplibregl-popup-content {
+      border-radius: 14px !important;
+      box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.18) !important;
+      border: 1px solid #E2E8F0;
+      padding: 12px 14px !important;
+      font-family: 'Pretendard', sans-serif !important;
+    }
+    .maplibregl-popup-close-button {
+      font-size: 16px;
+      padding: 4px 8px;
+      color: #64748B;
+    }
+    .custom-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 9999px;
+      color: #fff;
+      font-weight: 700;
+      font-size: 11px;
+      border: 2.5px solid #ffffff;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.28);
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .custom-marker:hover, .custom-marker.active {
+      transform: scale(1.18);
+      box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.28), 0 6px 16px rgba(15, 23, 42, 0.32);
+    }
+    .campus-marker {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #0F172A;
+      color: #F8FAFC;
+      padding: 5px 10px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 2px solid #FBBF24;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.35);
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .scrollbar-thin::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 9999px;
+    }
+    .network-node {
+      cursor: pointer;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .network-link {
+      transition: stroke-opacity 0.2s ease, stroke-width 0.2s ease;
+    }
+  </style>
+</head>
+<body class="antialiased selection:bg-indigo-100 selection:text-indigo-900">
+
+  <!-- Top Sticky Navigation -->
+  <header class="glass-header sticky top-0 z-40 border-b border-slate-200/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-kdu-navy to-kdu-indigo flex items-center justify-center text-white font-display font-extrabold text-sm shadow-sm">
+          KDU
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-bold tracking-tight text-slate-900">경동대학교 인물지도</h1>
+            <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+              Data Atlas · 15명
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 hidden sm:block">거주지 지리 분포 · 취미 클러스터 · 인물 관계 · GitHub Pages 허브</p>
+        </div>
+      </div>
+
+      <nav class="hidden md:flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/70">
+        <a href="#section-map" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-white hover:text-slate-900 hover:shadow-sm transition">지리 지도</a>
+        <a href="#section-analytics" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-white hover:text-slate-900 hover:shadow-sm transition">통계 분석</a>
+        <a href="#section-network" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-white hover:text-slate-900 hover:shadow-sm transition">관계 네트워크</a>
+        <a href="#section-directory" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-white hover:text-slate-900 hover:shadow-sm transition">인물 디렉토리</a>
+      </nav>
+
+      <div class="flex items-center gap-2">
+        <button id="btn-export-json" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition shadow-sm">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span class="hidden sm:inline">JSON 내보내기</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+    <!-- Hero KPI Bento Strip -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bento-card rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-semibold text-slate-500">전체 참여 인원</span>
+          <span class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <i data-lucide="users" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span class="text-2xl sm:text-3xl font-display font-extrabold text-slate-900">15</span>
+          <span class="text-xs font-medium text-slate-500">명</span>
+        </div>
+        <p class="mt-2 text-xs text-slate-500 leading-relaxed">
+          여자 10 · 남자 1 · 개성 캐릭터 3 <span class="text-slate-400">(공룡·덩엉이·1황녀)</span>
+        </p>
+      </div>
+
+      <div class="bento-card rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-semibold text-slate-500">최다 분포 지역</span>
+          <span class="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+            <i data-lucide="map-pin" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span class="text-2xl sm:text-3xl font-display font-extrabold text-slate-900">의정부 · 서울</span>
+        </div>
+        <p class="mt-2 text-xs text-slate-500 leading-relaxed">
+          의정부 4명 · 서울 4명 · 경기 기타 5명 · 강원/경남 2명
+        </p>
+      </div>
+
+      <div class="bento-card rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-semibold text-slate-500">캠퍼스 직선거리</span>
+          <span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+            <i data-lucide="compass" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span id="kpi-avg-dist" class="text-2xl sm:text-3xl font-display font-extrabold text-slate-900">-</span>
+          <span class="text-xs font-medium text-slate-500">km 평균</span>
+        </div>
+        <p class="mt-2 text-xs text-slate-500 leading-relaxed">
+          최단 <span class="font-semibold text-slate-700">민락/금오/동두천</span> ~ 최장 <span class="font-semibold text-rose-600">거제시 353km</span>
+        </p>
+      </div>
+
+      <div class="bento-card rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-semibold text-slate-500">웹 페이지 제출 현황</span>
+          <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <i data-lucide="globe" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span class="text-2xl sm:text-3xl font-display font-extrabold text-slate-900">14<span class="text-lg text-slate-400 font-semibold">/15</span></span>
+          <span class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">93.3%</span>
+        </div>
+        <p class="mt-2 text-xs text-slate-500 leading-relaxed">
+          GitHub 프로필 100% 등록 · Pages 14명 완료
+        </p>
+      </div>
+    </section>
+
+    <!-- Section 1: Interactive Map + Profile Inspector -->
+    <section id="section-map" class="scroll-mt-20 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Map Card -->
+      <div class="lg:col-span-7 xl:col-span-8 bento-card rounded-2xl p-4 sm:p-5 flex flex-col">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="map" class="w-4 h-4 text-indigo-600"></i>
+              거주지 인터랙티브 지도
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">마커를 클릭하면 상세 프로필과 캠퍼스까지의 거리를 확인할 수 있습니다.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button onclick="focusMap('metro')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition">수도권</button>
+            <button onclick="focusMap('uijeongbu')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition">의정부 집중</button>
+            <button onclick="focusMap('korea')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition">전국 (거제·춘천)</button>
+
+            <div class="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button id="btn-style-positron" onclick="setMapStyle('positron')" class="px-2 py-1 rounded-md text-[11px] font-semibold bg-white text-slate-900 shadow-sm transition">미니멀</button>
+              <button id="btn-style-liberty" onclick="setMapStyle('liberty')" class="px-2 py-1 rounded-md text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition">상세</button>
+            </div>
+
+            <button id="btn-toggle-lines" onclick="toggleCampusLines()" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm">
+              <i data-lucide="git-branch" class="w-3.5 h-3.5"></i>
+              캠퍼스 연결선
+            </button>
+          </div>
+        </div>
+
+        <div class="relative flex-1">
+          <div id="map"></div>
+          <!-- Map Legend Overlay -->
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 px-1">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-slate-900 ring-2 ring-amber-400"></span>경동대 양주캠퍼스</span>
+              <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>의정부권 (4)</span>
+              <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span>서울권 (4)</span>
+              <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>경기 북부·동부 (5)</span>
+              <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>강원·경남 (2)</span>
+            </div>
+            <span class="text-slate-400">OpenFreeMap · OpenStreetMap (API Key Free)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Selected Person Detail Inspector -->
+      <div class="lg:col-span-5 xl:col-span-4 bento-card rounded-2xl p-5 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <span class="text-xs font-bold uppercase tracking-wider text-indigo-600">Profile Inspector</span>
+            <div class="flex items-center gap-1">
+              <button onclick="stepPerson(-1)" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition" title="이전 인물">
+                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+              </button>
+              <button onclick="stepPerson(1)" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition" title="다음 인물">
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <div id="inspector-body" class="mt-4">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Quick Member Pill Selector -->
+        <div class="mt-5 pt-4 border-t border-slate-100">
+          <div class="text-[11px] font-semibold text-slate-400 mb-2">빠른 인물 전환</div>
+          <div id="quick-pills" class="flex flex-wrap gap-1.5"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Analytics Bento Grid -->
+    <section id="section-analytics" class="scroll-mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Region Distribution Chart -->
+      <div class="bento-card rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">거주 권역 분포</h3>
+            <p class="text-xs text-slate-500">클릭 시 하단 디렉토리 필터 연동</p>
+          </div>
+          <span class="p-2 rounded-xl bg-slate-50 text-slate-500"><i data-lucide="pie-chart" class="w-4 h-4"></i></span>
+        </div>
+        <div class="h-56 relative">
+          <canvas id="regionChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Hobby Cluster Chart -->
+      <div class="bento-card rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">취미 · 관심사 키워드</h3>
+            <p class="text-xs text-slate-500">악기·음악 강세 (복수 응답 포함)</p>
+          </div>
+          <span class="p-2 rounded-xl bg-slate-50 text-slate-500"><i data-lucide="bar-chart-3" class="w-4 h-4"></i></span>
+        </div>
+        <div class="h-56 relative">
+          <canvas id="hobbyChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Cherished Values Breakdown -->
+      <div class="bento-card rounded-2xl p-5 md:col-span-2 lg:col-span-1 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">"세상에서 가장 아끼는 것"</h3>
+              <p class="text-xs text-slate-500">가치관 키워드 TOP 그룹</p>
+            </div>
+            <span class="p-2 rounded-xl bg-rose-50 text-rose-500"><i data-lucide="heart" class="w-4 h-4"></i></span>
+          </div>
+
+          <div class="space-y-3">
+            <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <div class="flex items-center justify-between text-xs font-semibold mb-1">
+                <span class="text-slate-800">가족 · 엄마 · 동생</span>
+                <span class="text-indigo-600">8명 (53.3%)</span>
+              </div>
+              <div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mb-1.5">
+                <div class="h-full bg-indigo-600 rounded-full" style="width: 53.3%"></div>
+              </div>
+              <p class="text-[11px] text-slate-500">강민서, 문민희, 민제희, 윤수아, 이지민, 정유림, 최윤영, 신단하</p>
+            </div>
+
+            <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <div class="flex items-center justify-between text-xs font-semibold mb-1">
+                <span class="text-slate-800">나 자신 (Self-Love)</span>
+                <span class="text-sky-600">4명 (26.7%)</span>
+              </div>
+              <div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mb-1.5">
+                <div class="h-full bg-sky-500 rounded-full" style="width: 26.7%"></div>
+              </div>
+              <p class="text-[11px] text-slate-500">박종석(나), 박정빈(나 ^.....^), 김나림(나라고 나), 김승기(바로바로 나!)</p>
+            </div>
+
+            <div class="p-3 rounded-xl bg-amber-50/70 border border-amber-200/70">
+              <div class="flex items-center justify-between text-xs font-semibold mb-1">
+                <span class="text-amber-900">동기 샤라웃 &amp; 반려·건강·최애</span>
+                <span class="text-amber-700">Special</span>
+              </div>
+              <p class="text-[11px] text-amber-800 leading-relaxed">
+                <strong>박준영 → 김보라</strong> · <strong>민제희 → 정유림</strong><br/>
+                김보라(김복돌) · 최윤지(건강) · 정유림(이성열 미모) · 문민희(망고, 여름)
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Interactive Relationship & Affinity Network -->
+    <section id="section-network" class="scroll-mt-20 bento-card rounded-2xl p-5 sm:p-6">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <div>
+          <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+            <i data-lucide="share-2" class="w-4 h-4 text-indigo-600"></i>
+            인물 관계 · 공통점 네트워크 맵
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">노드에 마우스를 올리거나 클릭하면 동기 지목, 공통 취미(악기·게임·영화), 공통 가치관 연결선을 하이라이트합니다.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 text-[11px]">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 font-semibold border border-rose-100">
+            <span class="w-2 h-2 rounded-full bg-rose-500"></span>동기 직접 언급
+          </span>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100">
+            <span class="w-2 h-2 rounded-full bg-indigo-500"></span>음악/악기 취미
+          </span>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>게임/애니/영화
+          </span>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 font-semibold border border-amber-100">
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span>가치관(나/가족)
+          </span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+        <div class="lg:col-span-8 bg-slate-50/80 border border-slate-200/70 rounded-2xl p-2 overflow-hidden">
+          <svg id="network-svg" viewBox="0 0 820 440" class="w-full h-auto select-none"></svg>
+        </div>
+        <div class="lg:col-span-4 space-y-3">
+          <div id="network-info-card" class="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+            <div class="text-xs font-bold text-indigo-600 mb-1">하이라이트 인사이트</div>
+            <p class="text-sm font-bold text-slate-900 mb-1.5">숨겨진 인물 연결고리</p>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              노드를 선택하면 해당 인물이 지도와 디렉토리에서도 즉시 선택됩니다.
+            </p>
+          </div>
+          <div class="p-4 rounded-xl bg-white border border-slate-200/80 space-y-2.5">
+            <div class="text-xs font-bold text-slate-800">주목할 데이터 포인트</div>
+            <div class="text-xs text-slate-600 flex items-start gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-bold text-[10px] shrink-0 mt-0.5">관계</span>
+              <span><strong>박준영</strong>이 가장 아끼는 것은 <strong>김보라</strong>, <strong>민제희</strong>는 이연우보다 훨씬 크게 <strong>정유림</strong>을 아낌!</span>
+            </div>
+            <div class="text-xs text-slate-600 flex items-start gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-bold text-[10px] shrink-0 mt-0.5">밴드</span>
+              <span><strong>기타·우쿨렐레 연주자</strong>만 5명(박종석, 김승기, 윤수아, 최윤영, 최윤지)으로 <strong>경동대 밴드 결성 가능</strong> 수준!</span>
+            </div>
+            <div class="text-xs text-slate-600 flex items-start gap-2">
+              <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold text-[10px] shrink-0 mt-0.5">어록</span>
+              <span>민제희: <em>"어머니 저는 2층에서 뛰어내려서 등교하겠습니다 -&gt; 상여자"</em></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Searchable & Filterable Directory -->
+    <section id="section-directory" class="scroll-mt-20 space-y-4">
+      <div class="bento-card rounded-2xl p-4 sm:p-5">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="layout-grid" class="w-4 h-4 text-indigo-600"></i>
+              전체 인물 &amp; 페이지 디렉토리
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">이름, 동네, 취미, 아끼는 것으로 검색하거나 권역별로 필터링할 수 있습니다.</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Search -->
+            <div class="relative flex-1 sm:flex-initial">
+              <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+              <input id="search-input" type="text" placeholder="이름, 취미, 동네 검색..."
+                class="w-full sm:w-56 pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition" />
+            </div>
+
+            <!-- Region Filter -->
+            <select id="region-filter" class="px-3 py-1.5 text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:border-indigo-500">
+              <option value="all">전체 권역 (15)</option>
+              <option value="의정부권">의정부권 (4)</option>
+              <option value="서울권">서울권 (4)</option>
+              <option value="경기 기타">경기 북부·동부 (5)</option>
+              <option value="강원·경남">강원·경남 (2)</option>
+            </select>
+
+            <!-- Hobby Filter -->
+            <select id="hobby-filter" class="px-3 py-1.5 text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:border-indigo-500">
+              <option value="all">전체 취미</option>
+              <option value="음악/악기">음악 · 악기</option>
+              <option value="게임/애니">게임 · 애니 · 팬심</option>
+              <option value="영화/감상">영화 · 독서 · 공포</option>
+              <option value="운동/공예">운동 · 그림 · 뜨개질</option>
+            </select>
+
+            <!-- View Mode Toggle -->
+            <div class="inline-flex bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+              <button id="btn-view-grid" onclick="setViewMode('grid')" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-slate-900 shadow-sm transition">카드</button>
+              <button id="btn-view-table" onclick="setViewMode('table')" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition">테이블</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Directory Output Container -->
+      <div id="directory-container"></div>
+    </section>
+
+  </main>
+
+  <footer class="border-t border-slate-200 bg-white mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+      <div>경동대학교 인물지도 데이터 시각화 · OpenFreeMap &amp; MapLibre GL 기반</div>
+      <div>기준 좌표: 경동대학교 양주 메트로폴캠퍼스 (경기도 양주시 경동대학로 27)</div>
+    </div>
+  </footer>
+
+  <script>
+    // 1. Verified Dataset (15 Members + KDU Metropol Campus)
+    const KDU_CAMPUS = {
+      name: '경동대학교 메트로폴캠퍼스',
+      address: '경기도 양주시 경동대학로 27 (고암동)',
+      lat: 37.8096,
+      lng: 127.0705
+    };
+
+    const RAW_PEOPLE = [
+      {
+        id: 'p1',
+        name: '박종석',
+        github: 'https://github.com/John02-design',
+        pages: 'https://john02-design.github.io/1234/',
+        instaRaw: 'I_am_jongseok',
+        hobby: '일렉기타, 영화감상',
+        hobbyCats: ['음악/악기', '영화/감상'],
+        address: '경기도 의정부시 민락동',
+        regionGroup: '의정부권',
+        cherished: '나',
+        cherishedCat: '자기애',
+        gender: '미입력',
+        note: '',
+        lat: 37.7427,
+        lng: 127.0862
+      },
+      {
+        id: 'p2',
+        name: '박준영',
+        github: 'https://github.com/alex60796-bot',
+        pages: 'https://alex60796-bot.github.io/dkssudgktpdy/',
+        instaRaw: 'jxn.y0xn9',
+        hobby: '피파',
+        hobbyCats: ['게임/애니'],
+        address: '경기도 의정부시 의정부동',
+        regionGroup: '의정부권',
+        cherished: '김보라',
+        cherishedCat: '동기',
+        gender: '공룡',
+        note: '',
+        lat: 37.7381,
+        lng: 127.0433
+      },
+      {
+        id: 'p3',
+        name: '강민서',
+        github: 'https://github.com/rlverms',
+        pages: 'https://rlverms.github.io/rlverms/',
+        instaRaw: 'rlverms',
+        hobby: '쿠리만쥬 인형 구매, 영화 시청, 음악 감상',
+        hobbyCats: ['게임/애니', '영화/감상', '음악/악기'],
+        address: '서울특별시 노원구 상계동',
+        regionGroup: '서울권',
+        cherished: '엄마',
+        cherishedCat: '가족',
+        gender: '여자',
+        note: '',
+        lat: 37.6671,
+        lng: 127.0722
+      },
+      {
+        id: 'p4',
+        name: '박정빈',
+        github: 'https://github.com/ImSAKUYAmyfriendisRYO',
+        pages: 'https://imsakuyamyfriendisryo.github.io/-/',
+        instaRaw: '@upfstpu.2',
+        hobby: '노래듣기',
+        hobbyCats: ['음악/악기'],
+        address: '거제시 장평동',
+        regionGroup: '강원·경남',
+        cherished: '나 ^.....^',
+        cherishedCat: '자기애',
+        gender: '여자',
+        note: '',
+        lat: 34.8910,
+        lng: 128.6154
+      },
+      {
+        id: 'p5',
+        name: '김나림',
+        github: 'https://github.com/nalimgim947',
+        pages: '',
+        instaRaw: '@thisisimrimthis',
+        hobby: '그림, 음악, 운동, 애니',
+        hobbyCats: ['운동/공예', '음악/악기', '게임/애니'],
+        address: '경기도 동두천시',
+        regionGroup: '경기 기타',
+        cherished: '나라고 나',
+        cherishedCat: '자기애',
+        gender: '덩엉이',
+        note: '',
+        lat: 37.8966,
+        lng: 127.0517
+      },
+      {
+        id: 'p6',
+        name: '김보라',
+        github: 'https://github.com/KIMBORA050411',
+        pages: 'https://kimbora050411.github.io/050411/',
+        instaRaw: '@b0.ra.4',
+        hobby: '공포 보기',
+        hobbyCats: ['영화/감상'],
+        address: '경기도 의정부시 금오동',
+        regionGroup: '의정부권',
+        cherished: '김복돌',
+        cherishedCat: '반려/기타',
+        gender: '여자',
+        note: '',
+        lat: 37.7505,
+        lng: 127.0673
+      },
+      {
+        id: 'p7',
+        name: '김승기',
+        github: 'https://github.com/Seung7l',
+        pages: 'https://seung7l.github.io/DoSiMoonWhaSulGye/',
+        instaRaw: '@_seung7l',
+        hobby: '네줄기타',
+        hobbyCats: ['음악/악기'],
+        address: '경기도 구리시 인창동',
+        regionGroup: '경기 기타',
+        cherished: '바로바로 나!',
+        cherishedCat: '자기애',
+        gender: '남자',
+        note: '',
+        lat: 37.6027,
+        lng: 127.1304
+      },
+      {
+        id: 'p8',
+        name: '문민희',
+        github: 'https://github.com/massiag41-art',
+        pages: 'https://massiag41-art.github.io/1233/',
+        instaRaw: '@mini3061',
+        hobby: '게임',
+        hobbyCats: ['게임/애니'],
+        address: '경기도 남양주시',
+        regionGroup: '경기 기타',
+        cherished: '가족,망고,여름',
+        cherishedCat: '가족',
+        gender: '여자',
+        note: '',
+        lat: 37.6360,
+        lng: 127.2165
+      },
+      {
+        id: 'p9',
+        name: '민제희',
+        github: 'https://github.com/alfmekfn5',
+        pages: 'https://alfmekfn5.github.io/555/',
+        instaRaw: '@mirdar.u_',
+        hobby: '게임, 운동, 기깔나게 자기',
+        hobbyCats: ['게임/애니', '운동/공예'],
+        address: '강원도 춘천시',
+        regionGroup: '강원·경남',
+        cherished: '가족들, 이연우 <<<<<<<<<<<<<< 정유림',
+        cherishedCat: '동기',
+        gender: '경동대제국 1황녀',
+        note: '어머니 저는 2층에서 뛰어내려서 등교하겠습니다 -> 상여자',
+        lat: 37.8755,
+        lng: 127.7202
+      },
+      {
+        id: 'p10',
+        name: '윤수아',
+        github: 'https://github.com/tndk0512-ux',
+        pages: 'https://tndk0512-ux.github.io/index/',
+        instaRaw: 'tnd_0_5',
+        hobby: '기타,애니,음악듣기',
+        hobbyCats: ['음악/악기', '게임/애니'],
+        address: '서울특별시 송파구 마천동',
+        regionGroup: '서울권',
+        cherished: '동생',
+        cherishedCat: '가족',
+        gender: '여자',
+        note: '',
+        lat: 37.4971,
+        lng: 127.1524
+      },
+      {
+        id: 'p11',
+        name: '이지민',
+        github: 'https://github.com/leejimin0',
+        pages: 'https://leejimin0.github.io/ezym/',
+        instaRaw: '@tonmozza',
+        hobby: '독서',
+        hobbyCats: ['영화/감상'],
+        address: '경기도 하남시 망월동',
+        regionGroup: '경기 기타',
+        cherished: '가족',
+        cherishedCat: '가족',
+        gender: '여자',
+        note: '',
+        lat: 37.5625,
+        lng: 127.1915
+      },
+      {
+        id: 'p12',
+        name: '정유림',
+        github: 'https://github.com/yourrime0502-afk',
+        pages: 'https://yourrime0502-afk.github.io/kdu1/',
+        instaRaw: 'https://www.instagram.com/nollimmm?mdxt=MWNnNHBwZm5kNWI4NQ==',
+        hobby: '콘서트 관람',
+        hobbyCats: ['음악/악기'],
+        address: '동대문구 답십리2동',
+        regionGroup: '서울권',
+        cherished: '우리 엄마, 이성열 미모',
+        cherishedCat: '가족',
+        gender: '여자',
+        note: '',
+        lat: 37.5715,
+        lng: 127.0543
+      },
+      {
+        id: 'p13',
+        name: '최윤영',
+        github: 'https://github.com/usagi030dd',
+        pages: 'https://usagi030dd.github.io/samples/',
+        instaRaw: '@usagi030dd',
+        hobby: '음악 감상 및 연주(통기타&일렉)',
+        hobbyCats: ['음악/악기'],
+        address: '서울특별시 도봉구 쌍문동',
+        regionGroup: '서울권',
+        cherished: '엄마',
+        cherishedCat: '가족',
+        gender: '여자',
+        note: '',
+        lat: 37.6527,
+        lng: 127.0287
+      },
+      {
+        id: 'p14',
+        name: '최윤지',
+        github: 'https://github.com/choiyg1105-cloud',
+        pages: 'https://choiyg1105-cloud.github.io/save/',
+        instaRaw: 'yum._.crochet',
+        hobby: '우쿨렐레, 뜨개질',
+        hobbyCats: ['음악/악기', '운동/공예'],
+        address: '경기도 포천시',
+        regionGroup: '경기 기타',
+        cherished: '건강',
+        cherishedCat: '반려/기타',
+        gender: '여자',
+        note: '',
+        lat: 37.8949,
+        lng: 127.2003
+      },
+      {
+        id: 'p15',
+        name: '신단하',
+        github: 'https://github.com/danhaaaa',
+        pages: 'https://danhaaaa.github.io/sakuya/',
+        instaRaw: '@danha_naa',
+        hobby: '위시 사랑하기',
+        hobbyCats: ['게임/애니'],
+        address: '경기도 의정부시 신곡2동',
+        regionGroup: '의정부권',
+        cherished: '동생',
+        cherishedCat: '가족',
+        gender: '여자',
+        note: '',
+        lat: 37.7436,
+        lng: 127.0579
+      }
+    ];
+
+    // Helpers
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function parseInstagram(raw) {
+      if (!raw) return { handle: '-', url: '' };
+      if (raw.startsWith('http')) {
+        const match = raw.match(/instagram\.com\/([^/?]+)/);
+        const handle = match ? '@' + match[1] : 'Instagram';
+        return { handle, url: raw };
+      }
+      const clean = raw.replace(/^@/, '').trim();
+      return {
+        handle: '@' + clean,
+        url: `https://www.instagram.com/${encodeURIComponent(clean)}/`
+      };
+    }
+
+    function calcDistanceKm(lat1, lng1, lat2, lng2) {
+      const R = 6371;
+      const dLat = ((lat2 - lat1) * Math.PI) / 180;
+      const dLng = ((lng2 - lng1) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((lat1 * Math.PI) / 180) *
+          Math.cos((lat2 * Math.PI) / 180) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    const REGION_COLORS = {
+      '의정부권': '#4F46E5',
+      '서울권': '#0EA5E9',
+      '경기 기타': '#10B981',
+      '강원·경남': '#F43F5E'
+    };
+
+    const PEOPLE = RAW_PEOPLE.map((p) => {
+      const insta = parseInstagram(p.instaRaw);
+      const distanceKm = calcDistanceKm(KDU_CAMPUS.lat, KDU_CAMPUS.lng, p.lat, p.lng);
+      return {
+        ...p,
+        instaHandle: insta.handle,
+        instaUrl: insta.url,
+        distanceKm: Math.round(distanceKm * 10) / 10,
+        color: REGION_COLORS[p.regionGroup] || '#4F46E5'
+      };
+    });
+
+    // Global State
+    let selectedId = PEOPLE[0].id;
+    let viewMode = 'grid';
+    let showLines = true;
+    let currentStyle = 'positron';
+    let map;
+    let activePopup = null;
+
+    // Compute Avg Distance KPI
+    const avgDist = PEOPLE.reduce((acc, p) => acc + p.distanceKm, 0) / PEOPLE.length;
+    document.getElementById('kpi-avg-dist').textContent = avgDist.toFixed(1);
+
+    // 2. Initialize MapLibre GL JS + OpenFreeMap (No API Key Required)
+    function initMap() {
+      map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://tiles.openfreemap.org/styles/positron',
+        center: [127.11, 37.68],
+        zoom: 9.4,
+        attributionControl: true
+      });
+
+      map.scrollZoom.disable();
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
+
+      map.on('load', () => {
+        addCampusLinesLayer();
+        focusMap('metro');
+      });
+
+      // Campus Marker
+      const campusEl = document.createElement('div');
+      campusEl.className = 'campus-marker';
+      campusEl.innerHTML = '<span>★</span><span>경동대 양주캠퍼스</span>';
+      campusEl.addEventListener('click', () => {
+        if (activePopup) activePopup.remove();
+        activePopup = new maplibregl.Popup({ offset: 18 })
+          .setLngLat([KDU_CAMPUS.lng, KDU_CAMPUS.lat])
+          .setHTML(`
+            <div class="text-xs">
+              <div class="font-bold text-slate-900 mb-0.5">${escapeHtml(KDU_CAMPUS.name)}</div>
+              <div class="text-slate-500">${escapeHtml(KDU_CAMPUS.address)}</div>
+            </div>
+          `)
+          .addTo(map);
+      });
+
+      new maplibregl.Marker({ element: campusEl, anchor: 'center' })
+        .setLngLat([KDU_CAMPUS.lng, KDU_CAMPUS.lat])
+        .addTo(map);
+
+      // Student Markers
+      PEOPLE.forEach((p) => {
+        const el = document.createElement('div');
+        el.id = `pin-${p.id}`;
+        el.className = 'custom-marker';
+        el.style.background = p.color;
+        el.textContent = p.name.slice(0, 2);
+
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectPerson(p.id, false, true);
+        });
+
+        new maplibregl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([p.lng, p.lat])
+          .addTo(map);
+      });
+    }
+
+    function addCampusLinesLayer() {
+      if (!map || map.getSource('campus-lines')) return;
+
+      const features = PEOPLE.map((p) => ({
+        type: 'Feature',
+        properties: { color: p.color },
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [KDU_CAMPUS.lng, KDU_CAMPUS.lat],
+            [p.lng, p.lat]
+          ]
+        }
+      }));
+
+      map.addSource('campus-lines', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features
+        }
+      });
+
+      map.addLayer({
+        id: 'campus-lines-layer',
+        type: 'line',
+        source: 'campus-lines',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+          'visibility': showLines ? 'visible' : 'none'
+        },
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 1.8,
+          'line-opacity': 0.55,
+          'line-dasharray': [3, 3]
+        }
+      });
+    }
+
+    function setMapStyle(styleName) {
+      if (!map || currentStyle === styleName) return;
+      currentStyle = styleName;
+
+      const btnPositron = document.getElementById('btn-style-positron');
+      const btnLiberty = document.getElementById('btn-style-liberty');
+      if (styleName === 'positron') {
+        btnPositron.className = 'px-2 py-1 rounded-md text-[11px] font-semibold bg-white text-slate-900 shadow-sm transition';
+        btnLiberty.className = 'px-2 py-1 rounded-md text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition';
+      } else {
+        btnLiberty.className = 'px-2 py-1 rounded-md text-[11px] font-semibold bg-white text-slate-900 shadow-sm transition';
+        btnPositron.className = 'px-2 py-1 rounded-md text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition';
+      }
+
+      map.setStyle(`https://tiles.openfreemap.org/styles/${styleName}`);
+      map.once('style.load', () => {
+        addCampusLinesLayer();
+      });
+    }
+
+    function focusMap(preset) {
+      if (!map) return;
+      let targets = [];
+      if (preset === 'uijeongbu') {
+        targets = PEOPLE.filter((p) => p.regionGroup === '의정부권');
+      } else if (preset === 'metro') {
+        targets = PEOPLE.filter((p) => p.regionGroup !== '강원·경남');
+      } else {
+        targets = PEOPLE;
+      }
+
+      const bounds = new maplibregl.LngLatBounds();
+      bounds.extend([KDU_CAMPUS.lng, KDU_CAMPUS.lat]);
+      targets.forEach((p) => bounds.extend([p.lng, p.lat]));
+
+      map.fitBounds(bounds, {
+        padding: { top: 55, bottom: 55, left: 55, right: 55 },
+        duration: 750,
+        maxZoom: preset === 'uijeongbu' ? 12.6 : 11
+      });
+    }
+
+    function toggleCampusLines() {
+      showLines = !showLines;
+      const btn = document.getElementById('btn-toggle-lines');
+      if (map && map.getLayer('campus-lines-layer')) {
+        map.setLayoutProperty('campus-lines-layer', 'visibility', showLines ? 'visible' : 'none');
+      }
+      if (showLines) {
+        btn.classList.remove('bg-slate-200', 'text-slate-700');
+        btn.classList.add('bg-indigo-600', 'text-white');
+      } else {
+        btn.classList.remove('bg-indigo-600', 'text-white');
+        btn.classList.add('bg-slate-200', 'text-slate-700');
+      }
+    }
+
+    // 3. Profile Inspector & Selection Sync
+    function selectPerson(id, panMap = true, openPopup = panMap) {
+      selectedId = id;
+      const p = PEOPLE.find((item) => item.id === id);
+      if (!p) return;
+
+      PEOPLE.forEach((item) => {
+        const el = document.getElementById(`pin-${item.id}`);
+        if (el) {
+          el.classList.toggle('active', item.id === id);
+          if (el.parentElement) {
+            el.parentElement.style.zIndex = item.id === id ? '50' : '1';
+          }
+        }
+      });
+
+      if (map && panMap) {
+        map.flyTo({
+          center: [p.lng, p.lat],
+          zoom: Math.max(map.getZoom(), 10.8),
+          duration: 650
+        });
+      }
+
+      if (map && openPopup) {
+        if (activePopup) activePopup.remove();
+        activePopup = new maplibregl.Popup({ offset: 18 })
+          .setLngLat([p.lng, p.lat])
+          .setHTML(`
+            <div class="min-w-[170px] text-xs space-y-1">
+              <div class="flex items-center justify-between gap-2 pr-3">
+                <span class="font-bold text-sm text-slate-900">${escapeHtml(p.name)}</span>
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">${escapeHtml(p.gender)}</span>
+              </div>
+              <div class="text-slate-500">${escapeHtml(p.address)} · <strong>${p.distanceKm}km</strong></div>
+              <div class="text-indigo-600 font-medium">${escapeHtml(p.hobby)}</div>
+            </div>
+          `)
+          .addTo(map);
+      }
+
+      renderInspector(p);
+      renderQuickPills();
+      highlightNetworkNode(id);
+    }
+
+    function stepPerson(delta) {
+      const idx = PEOPLE.findIndex((p) => p.id === selectedId);
+      const nextIdx = (idx + delta + PEOPLE.length) % PEOPLE.length;
+      selectPerson(PEOPLE[nextIdx].id, true, true);
+    }
+
+    function renderInspector(p) {
+      const container = document.getElementById('inspector-body');
+      const hobbyBadges = p.hobby.split(',').map((h) =>
+        `<span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">${escapeHtml(h.trim())}</span>`
+      ).join('');
+
+      container.innerHTML = `
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-center gap-3.5">
+            <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-sm" style="background:${p.color}">
+              ${escapeHtml(p.name.slice(0, 2))}
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="text-xl font-extrabold text-slate-900">${escapeHtml(p.name)}</h3>
+                <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">${escapeHtml(p.gender)}</span>
+              </div>
+              <p class="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-slate-400"></i>
+                ${escapeHtml(p.address)} · <span class="font-semibold text-slate-700">캠퍼스까지 ${p.distanceKm}km</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-5 space-y-3.5">
+          <div>
+            <div class="text-[11px] font-semibold text-slate-400 mb-1.5">취미 · 관심사</div>
+            <div class="flex flex-wrap gap-1.5">${hobbyBadges}</div>
+          </div>
+
+          <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/70">
+            <div class="text-[11px] font-semibold text-slate-400 mb-1 flex items-center gap-1">
+              <i data-lucide="heart" class="w-3 h-3 text-rose-500"></i>
+              세상에서 가장 아끼는 것
+            </div>
+            <div class="text-sm font-bold text-slate-900 break-words">${escapeHtml(p.cherished)}</div>
+          </div>
+
+          ${p.note ? `
+            <div class="p-3.5 rounded-xl bg-amber-50 border border-amber-200/70">
+              <div class="text-[11px] font-semibold text-amber-700 mb-1">특이사항 / 한마디</div>
+              <div class="text-xs font-medium text-amber-900 leading-relaxed">${escapeHtml(p.note)}</div>
+            </div>
+          ` : ''}
+
+          <div class="grid grid-cols-3 gap-2 pt-1">
+            <a href="${escapeHtml(p.github)}" target="_blank" rel="noopener noreferrer"
+              class="flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition text-center">
+              <i data-lucide="github" class="w-4 h-4 text-slate-800"></i>
+              <span class="text-[11px] font-semibold text-slate-700">GitHub</span>
+            </a>
+
+            ${p.pages ? `
+              <a href="${escapeHtml(p.pages)}" target="_blank" rel="noopener noreferrer"
+                class="flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition text-center shadow-sm">
+                <i data-lucide="external-link" class="w-4 h-4"></i>
+                <span class="text-[11px] font-semibold">제출 페이지</span>
+              </a>
+            ` : `
+              <div class="flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl bg-slate-100 text-slate-400 text-center cursor-not-allowed">
+                <i data-lucide="file-x" class="w-4 h-4"></i>
+                <span class="text-[11px] font-medium">미제출</span>
+              </div>
+            `}
+
+            <a href="${escapeHtml(p.instaUrl)}" target="_blank" rel="noopener noreferrer"
+              class="flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl border border-slate-200 hover:border-pink-300 hover:bg-pink-50/40 transition text-center">
+              <i data-lucide="instagram" class="w-4 h-4 text-pink-600"></i>
+              <span class="text-[11px] font-semibold text-slate-700 truncate w-full px-1">${escapeHtml(p.instaHandle)}</span>
+            </a>
+          </div>
+        </div>
+      `;
+      lucide.createIcons();
+    }
+
+    function renderQuickPills() {
+      const container = document.getElementById('quick-pills');
+      container.innerHTML = PEOPLE.map((p) => {
+        const active = p.id === selectedId;
+        return `
+          <button onclick="selectPerson('${p.id}', true, true)"
+            class="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${
+              active
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }">
+            ${escapeHtml(p.name)}
+          </button>
+        `;
+      }).join('');
+    }
+
+    // 4. Charts (Chart.js)
+    function initCharts() {
+      const regionCounts = {
+        '의정부권': PEOPLE.filter((p) => p.regionGroup === '의정부권').length,
+        '서울권': PEOPLE.filter((p) => p.regionGroup === '서울권').length,
+        '경기 기타': PEOPLE.filter((p) => p.regionGroup === '경기 기타').length,
+        '강원·경남': PEOPLE.filter((p) => p.regionGroup === '강원·경남').length
+      };
+
+      const regionLabels = Object.keys(regionCounts);
+      new Chart(document.getElementById('regionChart'), {
+        type: 'doughnut',
+        data: {
+          labels: regionLabels,
+          datasets: [{
+            data: Object.values(regionCounts),
+            backgroundColor: ['#4F46E5', '#0EA5E9', '#10B981', '#F43F5E'],
+            borderWidth: 2,
+            borderColor: '#FFFFFF',
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '64%',
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: {
+                boxWidth: 10,
+                usePointStyle: true,
+                pointStyle: 'circle',
+                font: { family: 'Pretendard', size: 12 }
+              }
+            }
+          },
+          onClick: (_, elements) => {
+            if (elements.length > 0) {
+              const label = regionLabels[elements[0].index];
+              document.getElementById('region-filter').value = label;
+              renderDirectory();
+              document.getElementById('section-directory').scrollIntoView({ behavior: 'smooth' });
+            }
+          }
+        }
+      });
+
+      const hobbyCats = ['음악/악기', '게임/애니', '영화/감상', '운동/공예'];
+      const hobbyCounts = hobbyCats.map((cat) => PEOPLE.filter((p) => p.hobbyCats.includes(cat)).length);
+
+      new Chart(document.getElementById('hobbyChart'), {
+        type: 'bar',
+        data: {
+          labels: hobbyCats,
+          datasets: [{
+            label: '인원 수',
+            data: hobbyCounts,
+            backgroundColor: ['#4F46E5', '#8B5CF6', '#0EA5E9', '#10B981'],
+            borderRadius: 8,
+            barThickness: 22
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              ticks: { stepSize: 2, font: { family: 'Pretendard', size: 11 } },
+              grid: { color: '#F1F5F9' }
+            },
+            y: {
+              ticks: { font: { family: 'Pretendard', size: 12, weight: '600' } },
+              grid: { display: false }
+            }
+          },
+          onClick: (_, elements) => {
+            if (elements.length > 0) {
+              const cat = hobbyCats[elements[0].index];
+              document.getElementById('hobby-filter').value = cat;
+              renderDirectory();
+              document.getElementById('section-directory').scrollIntoView({ behavior: 'smooth' });
+            }
+          }
+        }
+      });
+    }
+
+    // 5. Interactive SVG Relationship Network
+    const NETWORK_LINKS = [
+      { source: 'p2', target: 'p6', type: 'peer', label: '가장 아끼는 동기 (박준영 → 김보라)' },
+      { source: 'p9', target: 'p12', type: 'peer', label: '가장 아끼는 동기 (민제희 → 정유림)' },
+      { source: 'p1', target: 'p7', type: 'music', label: '기타 연주 (일렉 · 네줄기타)' },
+      { source: 'p7', target: 'p10', type: 'music', label: '기타 연주' },
+      { source: 'p10', target: 'p13', type: 'music', label: '기타 연주 (통기타&일렉)' },
+      { source: 'p13', target: 'p14', type: 'music', label: '현악기 연주 (통기타 · 우쿨렐레)' },
+      { source: 'p3', target: 'p4', type: 'music', label: '음악 감상 · 노래' },
+      { source: 'p4', target: 'p12', type: 'music', label: '노래 · 콘서트 관람' },
+      { source: 'p2', target: 'p8', type: 'hobby', label: '게임 (피파 · 게임)' },
+      { source: 'p8', target: 'p9', type: 'hobby', label: '게임 메이트' },
+      { source: 'p5', target: 'p10', type: 'hobby', label: '애니 감상' },
+      { source: 'p3', target: 'p15', type: 'hobby', label: '캐릭터 · 최애 팬심' },
+      { source: 'p1', target: 'p3', type: 'hobby', label: '영화 감상' },
+      { source: 'p1', target: 'p4', type: 'value', label: '자기애 (가장 아끼는 것: 나)' },
+      { source: 'p4', target: 'p5', type: 'value', label: '자기애 (나 ^.....^ · 나라고 나)' },
+      { source: 'p5', target: 'p7', type: 'value', label: '자기애 (바로바로 나!)' }
+    ];
+
+    const LINK_STYLES = {
+      peer: { color: '#F43F5E', width: 2.8, dash: '' },
+      music: { color: '#4F46E5', width: 1.8, dash: '' },
+      hobby: { color: '#10B981', width: 1.6, dash: '4,3' },
+      value: { color: '#F59E0B', width: 1.6, dash: '2,3' }
+    };
+
+    function initNetwork() {
+      const svg = document.getElementById('network-svg');
+      const cx = 410, cy = 220, rx = 310, ry = 162;
+
+      const positions = {};
+      PEOPLE.forEach((p, idx) => {
+        const angle = (idx / PEOPLE.length) * Math.PI * 2 - Math.PI / 2;
+        positions[p.id] = {
+          x: cx + rx * Math.cos(angle),
+          y: cy + ry * Math.sin(angle)
+        };
+      });
+
+      let html = `<defs>
+        <marker id="arrow-peer" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#F43F5E" />
+        </marker>
+      </defs>`;
+
+      NETWORK_LINKS.forEach((l, i) => {
+        const a = positions[l.source];
+        const b = positions[l.target];
+        const st = LINK_STYLES[l.type];
+        const marker = l.type === 'peer' ? 'marker-end="url(#arrow-peer)"' : '';
+        html += `<line id="net-link-${i}" data-src="${l.source}" data-tgt="${l.target}" data-label="${escapeHtml(l.label)}"
+          x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"
+          stroke="${st.color}" stroke-width="${st.width}" stroke-opacity="0.32" stroke-dasharray="${st.dash}"
+          ${marker} class="network-link" />`;
+      });
+
+      PEOPLE.forEach((p) => {
+        const pos = positions[p.id];
+        html += `
+          <g id="net-node-${p.id}" class="network-node" transform="translate(${pos.x}, ${pos.y})"
+             onmouseenter="highlightNetworkNode('${p.id}')" onclick="selectPerson('${p.id}', false, true)">
+            <circle r="21" fill="#FFFFFF" stroke="${p.color}" stroke-width="3" />
+            <text text-anchor="middle" dy="4" font-size="11" font-weight="700" fill="#0F172A">${escapeHtml(p.name)}</text>
+          </g>
+        `;
+      });
+
+      svg.innerHTML = html;
+    }
+
+    function highlightNetworkNode(id) {
+      const person = PEOPLE.find((p) => p.id === id);
+      if (!person) return;
+
+      const connectedIds = new Set([id]);
+      const activeLabels = [];
+
+      document.querySelectorAll('.network-link').forEach((el) => {
+        const src = el.getAttribute('data-src');
+        const tgt = el.getAttribute('data-tgt');
+        const isConnected = src === id || tgt === id;
+        if (isConnected) {
+          connectedIds.add(src);
+          connectedIds.add(tgt);
+          activeLabels.push(el.getAttribute('data-label'));
+          el.setAttribute('stroke-opacity', '0.95');
+          el.setAttribute('stroke-width', '3');
+        } else {
+          el.setAttribute('stroke-opacity', '0.1');
+        }
+      });
+
+      document.querySelectorAll('.network-node').forEach((el) => {
+        const nid = el.id.replace('net-node-', '');
+        el.style.opacity = connectedIds.has(nid) ? '1' : '0.32';
+        const circle = el.querySelector('circle');
+        if (nid === id) {
+          circle.setAttribute('fill', '#EEF2FF');
+          circle.setAttribute('r', '25');
+        } else {
+          circle.setAttribute('fill', '#FFFFFF');
+          circle.setAttribute('r', '21');
+        }
+      });
+
+      const infoCard = document.getElementById('network-info-card');
+      const uniqueLabels = [...new Set(activeLabels)];
+      infoCard.innerHTML = `
+        <div class="text-xs font-bold text-indigo-600 mb-1">선택된 인물 네트워크</div>
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-sm font-extrabold text-slate-900">${escapeHtml(person.name)}</span>
+          <span class="text-[11px] font-medium text-slate-500">${escapeHtml(person.address)}</span>
+        </div>
+        ${uniqueLabels.length ? `
+          <ul class="space-y-1 mt-2">
+            ${uniqueLabels.map((lbl) => `<li class="text-xs text-slate-700 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>${escapeHtml(lbl)}</li>`).join('')}
+          </ul>
+        ` : `<p class="text-xs text-slate-500">개성 있는 독자적 취향 (${escapeHtml(person.hobby)})</p>`}
+      `;
+    }
+
+    // 6. Directory Grid & Table
+    function setViewMode(mode) {
+      viewMode = mode;
+      const btnGrid = document.getElementById('btn-view-grid');
+      const btnTable = document.getElementById('btn-view-table');
+      if (mode === 'grid') {
+        btnGrid.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-slate-900 shadow-sm transition';
+        btnTable.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition';
+      } else {
+        btnTable.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-slate-900 shadow-sm transition';
+        btnGrid.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition';
+      }
+      renderDirectory();
+    }
+
+    function getFilteredPeople() {
+      const q = document.getElementById('search-input').value.trim().toLowerCase();
+      const region = document.getElementById('region-filter').value;
+      const hobby = document.getElementById('hobby-filter').value;
+
+      return PEOPLE.filter((p) => {
+        const matchRegion = region === 'all' || p.regionGroup === region;
+        const matchHobby = hobby === 'all' || p.hobbyCats.includes(hobby);
+        const matchQuery = !q || [p.name, p.address, p.hobby, p.cherished, p.gender, p.instaHandle]
+          .some((field) => field.toLowerCase().includes(q));
+        return matchRegion && matchHobby && matchQuery;
+      });
+    }
+
+    function renderDirectory() {
+      const list = getFilteredPeople();
+      const container = document.getElementById('directory-container');
+
+      if (list.length === 0) {
+        container.innerHTML = `
+          <div class="bento-card rounded-2xl p-12 text-center">
+            <p class="text-sm font-semibold text-slate-700">조건에 맞는 인물이 없습니다.</p>
+            <p class="text-xs text-slate-400 mt-1">검색어나 필터 조건을 초기화해 보세요.</p>
+          </div>
+        `;
+        return;
+      }
+
+      if (viewMode === 'grid') {
+        container.innerHTML = `
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${list.map((p) => `
+              <div onclick="selectPerson('${p.id}', true, true); document.getElementById('section-map').scrollIntoView({behavior:'smooth'});"
+                class="bento-card bento-card-hover rounded-2xl p-5 cursor-pointer flex flex-col justify-between gap-4">
+                <div>
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="flex items-center gap-3">
+                      <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0" style="background:${p.color}">
+                        ${escapeHtml(p.name.slice(0, 2))}
+                      </div>
+                      <div>
+                        <div class="flex items-center gap-1.5">
+                          <h3 class="text-sm font-bold text-slate-900">${escapeHtml(p.name)}</h3>
+                          <span class="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-600">${escapeHtml(p.gender)}</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-0.5">${escapeHtml(p.address)} · ${p.distanceKm}km</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="mt-3.5 space-y-2 text-xs">
+                    <div class="flex items-start gap-2">
+                      <span class="text-slate-400 font-semibold shrink-0 w-12">취미</span>
+                      <span class="text-slate-700 font-medium">${escapeHtml(p.hobby)}</span>
+                    </div>
+                    <div class="flex items-start gap-2">
+                      <span class="text-rose-400 font-semibold shrink-0 w-12">최애</span>
+                      <span class="text-slate-800 font-semibold break-words">${escapeHtml(p.cherished)}</span>
+                    </div>
+                    ${p.note ? `
+                      <div class="mt-2 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-100 text-[11px] text-amber-800 font-medium">
+                        ${escapeHtml(p.note)}
+                      </div>
+                    ` : ''}
+                  </div>
+                </div>
+
+                <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-2" onclick="event.stopPropagation()">
+                  <div class="flex items-center gap-2">
+                    <a href="${escapeHtml(p.github)}" target="_blank" rel="noopener noreferrer"
+                      class="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900">
+                      <i data-lucide="github" class="w-3.5 h-3.5"></i>GitHub
+                    </a>
+                    <span class="text-slate-300">·</span>
+                    <a href="${escapeHtml(p.instaUrl)}" target="_blank" rel="noopener noreferrer"
+                      class="inline-flex items-center gap-1 text-[11px] font-semibold text-pink-600 hover:text-pink-700 truncate max-w-[115px]">
+                      <i data-lucide="instagram" class="w-3.5 h-3.5 shrink-0"></i>${escapeHtml(p.instaHandle)}
+                    </a>
+                  </div>
+                  ${p.pages ? `
+                    <a href="${escapeHtml(p.pages)}" target="_blank" rel="noopener noreferrer"
+                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-[11px] font-semibold transition">
+                      페이지 <i data-lucide="arrow-up-right" class="w-3 h-3"></i>
+                    </a>
+                  ` : `<span class="text-[11px] text-slate-400 font-medium">미제출</span>`}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <div class="bento-card rounded-2xl overflow-hidden">
+            <div class="overflow-x-auto scrollbar-thin">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th class="py-3 px-4">이름 / 정체성</th>
+                    <th class="py-3 px-4">거주지 (캠퍼스 거리)</th>
+                    <th class="py-3 px-4">취미</th>
+                    <th class="py-3 px-4">세상에서 가장 아끼는 것</th>
+                    <th class="py-3 px-4">링크</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-xs">
+                  ${list.map((p) => `
+                    <tr class="hover:bg-slate-50/80 transition cursor-pointer" onclick="selectPerson('${p.id}', true, true); document.getElementById('section-map').scrollIntoView({behavior:'smooth'});">
+                      <td class="py-3 px-4 whitespace-nowrap">
+                        <div class="flex items-center gap-2.5">
+                          <span class="w-2.5 h-2.5 rounded-full" style="background:${p.color}"></span>
+                          <span class="font-bold text-slate-900">${escapeHtml(p.name)}</span>
+                          <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px]">${escapeHtml(p.gender)}</span>
+                        </div>
+                      </td>
+                      <td class="py-3 px-4 whitespace-nowrap text-slate-600">
+                        ${escapeHtml(p.address)} <span class="text-slate-400">(${p.distanceKm}km)</span>
+                      </td>
+                      <td class="py-3 px-4 text-slate-700">${escapeHtml(p.hobby)}</td>
+                      <td class="py-3 px-4 font-semibold text-slate-800 max-w-xs truncate" title="${escapeHtml(p.cherished)}">${escapeHtml(p.cherished)}</td>
+                      <td class="py-3 px-4 whitespace-nowrap" onclick="event.stopPropagation()">
+                        <div class="flex items-center gap-2">
+                          <a href="${escapeHtml(p.github)}" target="_blank" rel="noopener noreferrer" class="text-slate-500 hover:text-slate-900 font-semibold">GitHub</a>
+                          ${p.pages ? `<a href="${escapeHtml(p.pages)}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline font-semibold">Pages</a>` : `<span class="text-slate-300">-</span>`}
+                          <a href="${escapeHtml(p.instaUrl)}" target="_blank" rel="noopener noreferrer" class="text-pink-600 hover:underline">${escapeHtml(p.instaHandle)}</a>
+                        </div>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+      lucide.createIcons();
+    }
+
+    // Export JSON Button
+    document.getElementById('btn-export-json').addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(PEOPLE, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'kdu-people-atlas.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Event Listeners
+    document.getElementById('search-input').addEventListener('input', renderDirectory);
+    document.getElementById('region-filter').addEventListener('change', renderDirectory);
+    document.getElementById('hobby-filter').addEventListener('change', renderDirectory);
+
+    // Boot
+    document.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      initCharts();
+      initNetwork();
+      selectPerson(PEOPLE[0].id, false, false);
+      renderDirectory();
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>
